@@ -3,6 +3,8 @@ const STICKY_CLASS_PREFIX = 'sticky';
 
 const STICKY_CLASSES = `.${STICKY_CLASS_PREFIX}-top, .${STICKY_CLASS_PREFIX}-right, .${STICKY_CLASS_PREFIX}-bottom, .${STICKY_CLASS_PREFIX}-left`;
 
+const resizeObserver = new ResizeObserver((entries)=>updateStickyInsets());
+
 let startingZIndex;
 let stickyElements;
 let stickyElementsMap;
@@ -11,52 +13,70 @@ let containingBlocksMap;
 document.addEventListener('DOMContentLoaded', () => {
 	
 	document.styleSheets[0].insertRule(`${STICKY_CLASSES} { position: sticky; }`, 0);
+	document.styleSheets[0].insertRule(`.${STICKY_CLASS_PREFIX}-container { position: relative; overflow: auto; }`, 0);
 	
 	const customStartingZIndex = 1*document.documentElement.dataset.stickyZIndex?.replace(/^(\d+).*/, '$1');
 	startingZIndex = customStartingZIndex || STARTING_Z_INDEX;
 	
 	refreshStickyElements();
-	window.addEventListener('resize', refreshStickyElements);
 });
 
 function refreshStickyElements() {
 	// Refresh all sticky elements.
 	
+	resizeObserver.disconnect();
+	
 	stickyElementsMap = new Map();
 	containingBlocksMap = new Map();
 	
 	stickyElements = document.querySelectorAll(STICKY_CLASSES);
-
+	
 	stickyElements.forEach((stickyElement) => {
+		
+		stickyElement.style.zIndex = startingZIndex+1;
+		
 		const containingBlock = getContainingBlock(stickyElement);
 		if(window.getComputedStyle(containingBlock).zIndex === 'auto') {
 			containingBlock.style.zIndex = 0;
 		}
-		stickyElementsMap.set(stickyElement, containingBlock);
-		containingBlocksMap.set(containingBlock, { top: 0, right: 0, bottom: 0, left: 0, zIndex: startingZIndex });
+		
+		stickyElementsMap.set(stickyElement, { container: containingBlock});
+		containingBlocksMap.set(containingBlock, { top: 0, right: 0, bottom: 0, left: 0, zIndex: startingZIndex+1 });
+		
+		resizeObserver.observe(stickyElement, { box: "border-box" });
 	});
 	
 	updateStickyInsets();
-	updateStickyZIndexes();
+	//updateStickyZIndexes();
+}
+
+function resetContainingBlocks() {
+	// Reset all containing blocks.
+	// This is useful when the DOM structure changes and we need to re-evaluate the containing blocks.
+	
+	containingBlocksMap.forEach((props, containingBlock) => {
+		props.top = props.right = props.bottom = props.left = 0;
+	});
 }
 
 function updateStickyInsets() {
 	// Update positioning insets for all sticky elements.
 	// This ensures that sticky elements are stacked within their containing blocks.
 	
-	const reverseMap = new Map();
+	resetContainingBlocks();
 	
 	stickyElements.forEach((stickyElement) => {
 		
-		const containingBlock = stickyElementsMap.get(stickyElement);
+		const containingBlock = stickyElementsMap.get(stickyElement).container;
 		const props = containingBlocksMap.get(containingBlock);
+		const style = stickyElement.style;
 		
 		if (stickyElement.classList.contains(`${STICKY_CLASS_PREFIX}-top`)) {
-			stickyElement.style.top = props.top + 'px';
+			style.top = props.top + 'px';
 			props.top += stickyElement.offsetHeight;
 		}
 		if (stickyElement.classList.contains(`${STICKY_CLASS_PREFIX}-left`)) {
-			stickyElement.style.left = props.left + 'px';
+			style.left = props.left + 'px';
 			props.left += stickyElement.offsetWidth;
 		}
 		
@@ -65,20 +85,53 @@ function updateStickyInsets() {
 	
 	Array.prototype.toReversed.apply(stickyElements).forEach((stickyElement) => {
 		
-		const containingBlock = stickyElementsMap.get(stickyElement);
+		const containingBlock = stickyElementsMap.get(stickyElement).container;
 		const props = containingBlocksMap.get(containingBlock);
+		const style = stickyElement.style;
 		
 		if (stickyElement.classList.contains(`${STICKY_CLASS_PREFIX}-bottom`)) {
-			stickyElement.style.bottom = props.bottom + 'px';
+			style.bottom = props.bottom + 'px';
 			props.bottom += stickyElement.offsetHeight;
 		}
 		if (stickyElement.classList.contains(`${STICKY_CLASS_PREFIX}-right`)) {
-			stickyElement.style.right = props.right + 'px';
+			style.right = props.right + 'px';
 			props.right += stickyElement.offsetWidth;
 		}
 		
 		containingBlocksMap.set(containingBlock, props);
+		
+		const intersectionObserver = createIntersectionObserver(stickyElement);
+		
+		intersectionObserver.observe(stickyElement);
 	});
+}
+
+function createIntersectionObserver(stickyElement) {
+	// Create an IntersectionObserver to monitor the visibility of the sticky element.
+	
+	const containingBlock = stickyElementsMap.get(stickyElement).container;
+	const props = containingBlocksMap.get(containingBlock);
+	const style = stickyElement.style;
+	
+	const intersectionObserver = new IntersectionObserver(
+		(entries) => {
+			entries.forEach((entry) => {
+				if (entry.isIntersecting) {
+					style.zIndex = startingZIndex;
+				} else {
+					style.zIndex = startingZIndex+1;
+				}
+			});
+		},
+		{
+			root: containingBlock,
+			threshold: [1],
+			rootMargin: `${style.top} ${style.right} ${style.bottom} ${style.left}`,
+		}
+	);
+	
+	return intersectionObserver;
+	
 }
 
 function updateStickyZIndexes() {
@@ -86,7 +139,8 @@ function updateStickyZIndexes() {
 	// This ensures that sticky elements are layered correctly within their containing blocks.
 	
 	containingBlocksMap.forEach((props, containingBlock) => {
-		const stickyElements = Array.from(stickyElementsMap.keys()).filter((stickyElement) => stickyElementsMap.get(stickyElement) === containingBlock);
+		const stickyElements = Array.from(stickyElementsMap.keys())
+			.filter((stickyElement) => stickyElementsMap.get(stickyElement).container === containingBlock);
 		
 		stickyElements.forEach((stickyElement) => {
 			const zIndex = props.zIndex++;
