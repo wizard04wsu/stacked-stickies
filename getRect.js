@@ -22,6 +22,7 @@ function getRect(element, relativeTo = [0, 0]) {
 	const style = window.getComputedStyle(element);
 	
 	const rect = {
+		marginBox: {},
 		borderBox: {
 			top: borderBox.top - originY,
 			right: borderBox.right - originX,
@@ -32,12 +33,19 @@ function getRect(element, relativeTo = [0, 0]) {
 		},
 		paddingBox: {},
 		contentBox: {},
+		
+		marginWidth: {},
 		borderWidth: {},
 		paddingWidth: {},
 	};
 	
 	rect.borderBox.x = rect.borderBox.left;
 	rect.borderBox.y = rect.borderBox.top;
+	
+	rect.marginWidth.top = parseFloat(style.marginTopWidth);
+	rect.marginWidth.right = parseFloat(style.marginRightWidth);
+	rect.marginWidth.bottom = parseFloat(style.marginBottomWidth);
+	rect.marginWidth.left = parseFloat(style.marginLeftWidth);
 	
 	rect.borderWidth.top = parseFloat(style.borderTopWidth);
 	rect.borderWidth.right = parseFloat(style.borderRightWidth);
@@ -48,6 +56,15 @@ function getRect(element, relativeTo = [0, 0]) {
 	rect.paddingWidth.right = parseFloat(style.paddingRight);
 	rect.paddingWidth.bottom = parseFloat(style.paddingBottom);
 	rect.paddingWidth.left = parseFloat(style.paddingLeft);
+	
+	rect.marginBox.top = rect.borderBox.top - rect.marginWidth.top;
+	rect.marginBox.right = rect.borderBox.right + rect.marginWidth.right;
+	rect.marginBox.bottom = rect.borderBox.bottom + rect.marginWidth.bottom;
+	rect.marginBox.left = rect.borderBox.left - rect.marginWidth.left;
+	rect.marginBox.x = rect.marginBox.left;
+	rect.marginBox.y = rect.marginBox.top;
+	rect.marginBox.height = rect.marginBox.bottom - rect.marginBox.top;
+	rect.marginBox.width = rect.marginBox.right - rect.marginBox.left;
 	
 	rect.paddingBox.top = rect.borderBox.top + rect.borderWidth.top;
 	rect.paddingBox.right = rect.borderBox.right - rect.borderWidth.right;

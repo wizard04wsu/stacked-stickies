@@ -15,6 +15,9 @@ document.addEventListener('DOMContentLoaded', () => {
 	
 	document.styleSheets[0].insertRule(`${STICKY_CLASSES} { position: sticky; }`, 0);
 	document.styleSheets[0].insertRule(`.${STICKY_CLASS_PREFIX}-container { position: relative; overflow-y: auto; }`, 0);
+	if (window.getComputedStyle(document.documentElement).overflowY === 'visible') {
+		document.documentElement.style.overflowY = 'auto';
+	}
 	
 	zIndexes.lower = window.parseInt(document.documentElement.dataset.stickyZIndex) || STARTING_Z_INDEX;
 	zIndexes.mid = zIndexes.lower + 1;
